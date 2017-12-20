@@ -178,13 +178,13 @@ def setStudentInfo(filename):
                 subjects.clear()
             student = Student(item[0], item[1])
             last_school_id = item[1]
-
-        if subject_type != SubjectType.SelectSubject:
-            subjects.append(Subject(subject_type, replace_html_tag(item[2]), [], item[13], item[12]))
+        if subject_type == SubjectType.SelectSubject:
+            subjects.append(Subject(subject_type, replace_html_tag(item[2]),
+                                    [replace_html_tag(item[3]), replace_html_tag(item[4]), replace_html_tag(item[5]), \
+                                     replace_html_tag(item[6]), ], item[13], item[12]))
         else:
-            subjects.append(Subject(subject_type, replace_html_tag(item[2]), [replace_html_tag(item[3]), \
-                                    replace_html_tag(item[4]), replace_html_tag(item[5]), \
-                                    replace_html_tag(item[6]), ], item[13], item[12]))
+            subjects.append(Subject(subject_type, replace_html_tag(item[2]), [], replace_html_tag(item[13]),replace_html_tag(item[12])))
+            
     student.subjects = copy.deepcopy(subjects)
     students.append(copy.deepcopy(student))
     csvfile.close()
@@ -235,9 +235,8 @@ def generatePapers(document, student):
             fraction = 2.0 if subject.right_answer == subject.answer else 0.0
             table.cell(0, 5).text = '标准答案:%s   考生答案:%s   %s   得分%s' % (subject.right_answer, \
                                                                        subject.answer, right, fraction)
-
         # 处理是非题
-        if subject.type == SubjectType.SelectSubject:
+        elif subject.type == SubjectType.JudgmentSubject:
             table = doc.add_table(rows=2, cols=1)
             r = table.cell(0, 0).add_paragraph().add_run('%s、%s' % (count, subject.title))
             r.font.name = 'Trebuchet MS'
@@ -245,22 +244,58 @@ def generatePapers(document, student):
             r.size = Pt(10.5)
             right = '√' if subject.right_answer == subject.answer else '×'
             fraction = 2.0 if subject.right_answer == subject.answer else 0.0
-            table.cell(0, 5).text = '标准答案:%s   考生答案:%s   %s   得分%s' % (subject.right_answer, \
+            table.cell(0, 1).text = '标准答案:%s   考生答案:%s   %s   得分%s' % (subject.right_answer, \
                                                                        subject.answer, right, fraction)
-
         # 处理填空题
+        elif subject.type == SubjectType.Completion:
+            answers = opCompleteAnswer(subject.answer)
+            print(answers)
+            rights = []
+            right_answer = opCompleteAnswer(subject.right_answer)
+            print(right_answer)
+            perfraction = 4/3.0
+            fraction = 0
+            for i in range(len(right_answer)):
+                right = '√' if i >= len(answers) or right_answer[i] == answers[i] else '×'
+                rights.append(right)
+                fraction = fraction + perfraction
+            table = doc.add_table(rows = 3, cols = 1)
+            r = table.cell(0, 0).add_paragraph().add_run('%s、%s' % (count, subject.title))
+            r.font.name = 'Trebuchet MS'
+            r.bold = True
+            r.size = Pt(10.5)
+            text = '标准答案: '
+            for string in right_answer:
+                text = text + ' ' + string
+            text = text + '  考生答案:'
+            for string in answers:
+                text = text + ' ' + string
+            table.cell(0,1).text = text
+            text = ''
+            for i in range(len(right_answer)):
+                text = text + '第%s空：%s ' % (i+1,rights[i])
+            text = text + ' 得分 %s' % fraction
+            table.cell(0,2).text = text
+            
+        else:
+            table = doc.add_table(rows = 3, cols = 1)
+            r = table.cell(0, 0).add_paragraph().add_run('%s、%s' % (count, subject.title))
+            r.font.name = 'Trebuchet MS'
+            r.bold = True
+            r.size = Pt(10.5)
+            table.cell(0,1).text = '标准答案:%s' % subject.right_answer
+            table.cell(0,2).text = '考生答案:%s' % subject.answer
+            
         count += 1
-    doc.save("%s.doc" % student.schoolId)
+    doc.save("%s%s.doc" % (student.schoolId,student.name))
 
 # 去除html各种标签
 def replace_html_tag(string):
     # replace方式替换标签
-    # string = string.replace('<br>', '\n')
-    # string = string.replace('<br/>', '\n')
-    # string = string.replace('<br >', '\n')
-    # string = string.replace('<br />', '\n')
-    str_info = re.compile('<.*br.*>')
-    string = str_info.sub('\n', string)
+    string = string.replace('<br>', '\n')
+    string = string.replace('<br/>', '\n')
+    string = string.replace('<br >', '\n')
+    string = string.replace('<br />', '\n')
     string = string.replace('&quot;', '"')
     string = string.replace('&gt;', '>')
     string = string.replace('&lt;', '<')
@@ -268,6 +303,10 @@ def replace_html_tag(string):
     string = string.replace('&nbsp;', ' ')
     string = string.strip()
     return string
+
+def opCompleteAnswer(string):
+    string = string.strip()
+    return string.split('@`_~@')
 
 # 所有学生的list
 students = []
@@ -277,5 +316,5 @@ if __name__ == '__main__':
     document = Document('template.docx')
     # document.save('C:\\Users\\Administrator.WIN-N52B1L3VP08\\Desktop\\test.docx')
     setStudentInfo('siti.csv')
-    for item in students[0].subjects:
-        print(item.type)
+    for student in students:
+        generatePapers(copy.deepcopy(document),student)
